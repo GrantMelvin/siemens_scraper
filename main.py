@@ -1,35 +1,68 @@
-import requests
-from bs4 import BeautifulSoup 
 import time
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
-from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.common.by import By
-from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.chrome.options import Options
+from bs4 import BeautifulSoup
 
+# Keeps the browser open after we end the session and selects our chromedriver
 options = Options()
 options.add_experimental_option("detach", True)
+service = Service("C:/Users/grmelv/Downloads/chromedriver-win64/chromedriver-win64/chromedriver.exe")
 
-driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()),
-                          options=options)
+# Attaches everything for the webdriver
+driver = webdriver.Chrome(service=service, options=options)
 
-URL = 'https://support.industry.siemens.com/forum/WW/en/topics/#!?&OnlyNewTopics=false&SortOrder=lastpost_desc&TopicsByUserName='
-
-driver.get(URL)
-
-# Optionally, wait for the "Accept All Cookies" button to be clickable
 try:
-    time.sleep(5)
-    # Adjust the By selector and the class name as per the actual website's button
-    accept_button = WebDriverWait(driver, 10).until(
-        EC.element_to_be_clickable((By.CSS_SELECTOR, "button[data-testid='uc-accept-all-button']"))
-    )
-    
-    # Simulate a click action on the "Accept All Cookies" button
-    accept_button.click()
+    # Navigate to the main page
+    main_url = 'https://support.industry.siemens.com/cs/products?dtp=TechnicalData&mfn=ps&lc=en-WW'
+    driver.get(main_url)
 
+    # Wait for the document headers to be present
+    wait = WebDriverWait(driver, 10)
+    document_headers = wait.until(EC.presence_of_all_elements_located((By.XPATH, '//span[@class="documentheader"]/parent::a')))
+
+    # Get the document links
+    document_links = [header.get_attribute('href') for header in document_headers]
+    print(document_links)
+
+    # Loop through each document link
+    for document_link in document_links:
+        print(f"Current link being evaluated: {document_link}")
+
+        try:
+            # Click on the individual product page
+            driver.get(document_link)
+
+            # Wait for table to load if it exists
+            try:
+
+                # Select the table
+                table = wait.until(EC.presence_of_element_located((By.XPATH, '//table')))
+
+                # Get the table content
+                table_html = table.get_attribute('outerHTML')
+
+                # Parse the content - can be JSON instead or go store somewhere
+                soup = BeautifulSoup(table_html, 'html.parser')
+
+                # Print the table content
+                print(soup.prettify())
+
+            # No table on this page
+            except:
+                print(f"No table found on: {document_link}")
+
+            # Go back to main page so that we can go to the next product
+            driver.get(main_url)
+
+            # Wait for the main page to load again
+            wait.until(EC.presence_of_element_located((By.XPATH, '//span[@class="documentheader"]/parent::a')))
+        except Exception as e:
+            print(f"ERROR ON {document_link}: {e}")
+
+# Something has gone terribly wrong
 except Exception as e:
-    print(f"An error occurred: {e}")
+    print(f"ERROR: {e}")
